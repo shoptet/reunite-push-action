@@ -1,23 +1,40 @@
-name: 'The name of your action here'
-description: 'Provide a description here'
-author: 'Your name or organization here'
+name: 'Redocly Reunite Push'
+description: 'Action for pushing files to Redocly Reunite app'
+author: 'Redocly'
 
-# Add your action's branding here. This will appear on the GitHub Marketplace.
 branding:
-  icon: 'heart'
-  color: 'red'
+  icon: 'upload-cloud'
+  color: 'blue'
 
-# Define your inputs here.
 inputs:
-  milliseconds:
-    description: 'Your input description here'
+  organization:
+    description: 'Redocly organization slug'
     required: true
-    default: '1000'
+  project:
+    description: 'Redocly project slug'
+    required: true
+  domain:
+    description: 'Redocly app domain'
+    required: false
+    default: 'https://app.cloud.redocly.com'
+  files:
+    description: 'Space-separated list of files and/or folders to push'
+    required: true
+  mountPath:
+    description: 'Remote content mount path inside the target Redocly project'
+    required: true
+  maxExecutionTime:
+    description: 'Max execution time in seconds'
+    required: false
+    default: '1200'
+  githubToken:
+    description: 'Token to authenticate with'
+    required: true
+    default: ${{ github.token }}
 
-# Define your outputs here.
 outputs:
-  time:
-    description: 'Your output description here'
+  pushId:
+    description: 'Push ID'
 
 runs:
   using: node20
