@@ -48,9 +48,8 @@ export async function parseEventData(): Promise<ParsedEventData> {
     );
   }
 
-  const branch =
-    github.context.payload.pull_request?.['head']?.['ref'] ||
-    github.context.ref.replace('refs/heads/', '');
+  // we force the branch to be master
+  const branch = 'master';
 
   if (!branch) {
     throw new Error(

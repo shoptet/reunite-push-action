@@ -1,5 +1,10 @@
 # Redocly Reunite Push GitHub Action
 
+**Forked, to force push to production while master-released is updated 
+
+Redocly pushes to production only if branch and default branch are the same. 
+This action allows to force push to production.**
+
 GitHub Action for pushing files to Redocly Reunite app.
 
 This action is published as a utility for users of our cloud services, if you
