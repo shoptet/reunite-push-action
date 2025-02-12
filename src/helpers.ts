@@ -132,7 +132,7 @@ function getCommitSha(): string | undefined {
     github.context.eventName === 'repository_dispatch' ||
     github.context.eventName === 'workflow_dispatch'
   ) {
-    return github.sha;
+    return github.context.sha;
   }
 }
 
