@@ -32,11 +32,13 @@ export async function parseEventData(): Promise<ParsedEventData> {
   if (
     !(
       github.context.eventName === 'push' ||
-      github.context.eventName === 'pull_request'
+      github.context.eventName === 'pull_request' ||
+      github.context.eventName === 'repository_dispatch' ||
+      github.context.eventName === 'workflow_dispatch'
     )
   ) {
     throw new Error(
-      'Unsupported GitHub event type. Only "push" and "pull_request" events are supported.',
+      'Unsupported GitHub event type. Only "push", "pull_request", "repository_dispatch" and "workflow_dispatch" events are supported.',
     );
   }
   const namespace = github.context.payload?.repository?.owner?.login;
@@ -47,9 +49,14 @@ export async function parseEventData(): Promise<ParsedEventData> {
       'Invalid GitHub event data. Can not get owner or repository name from the event payload.',
     );
   }
+  let branch = 'master';
 
   // we force the branch to be master
-  const branch = 'master';
+  if (github.context.eventName === 'repository_dispatch') {
+    branch =
+      github.context.payload.pull_request?.['head']?.['ref'] ||
+      github.context.ref.replace('refs/heads/', '');
+  }
 
   if (!branch) {
     throw new Error(
@@ -120,6 +127,12 @@ function getCommitSha(): string | undefined {
     if (github.context.payload.action === 'synchronize') {
       return github.context.payload.after;
     }
+  }
+  if (
+    github.context.eventName === 'repository_dispatch' ||
+    github.context.eventName === 'workflow_dispatch'
+  ) {
+    return github.sha;
   }
 }
 

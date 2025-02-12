@@ -76459,14 +76459,26 @@ function parseInputData() {
 exports.parseInputData = parseInputData;
 async function parseEventData() {
     if (!(github.context.eventName === 'push' ||
-        github.context.eventName === 'pull_request')) {
-        throw new Error('Unsupported GitHub event type. Only "push" and "pull_request" events are supported.');
+        github.context.eventName === 'pull_request' ||
+        github.context.eventName === 'workflow_dispatch' ||
+        github.context.eventName === 'repository_dispatch')) {
+        throw new Error('Unsupported GitHub event type. Only "push", "pull_request", "repository_dispatch" and "workflow_dispatch" events are supported.');
     }
     const namespace = github.context.payload?.repository?.owner?.login;
     const repository = github.context.payload?.repository?.name;
     if (!namespace || !repository) {
         throw new Error('Invalid GitHub event data. Can not get owner or repository name from the event payload.');
     }
+
+    if (github.context.eventName === 'repository_dispatch') {
+        const branch =
+            github.context.payload.pull_request?.['head']?.['ref'] ||
+            github.context.ref.replace('refs/heads/', '');
+        console.log('branch:', branch)
+    } else {
+        const branch = 'master';
+    }
+
     const branch = 'master';
     if (!branch) {
         throw new Error('Invalid GitHub event data. Can not get branch from the event payload.');
@@ -76517,6 +76529,9 @@ function getCommitSha() {
         if (github.context.payload.action === 'synchronize') {
             return github.context.payload.after;
         }
+    }
+    if (github.context.eventName === 'repository_dispatch' || github.context.eventName === 'workflow_dispatch') {
+        return github.sha;
     }
 }
 // Returns parsed config from the root or default config if not found
