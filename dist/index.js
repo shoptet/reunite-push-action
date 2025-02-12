@@ -76531,7 +76531,8 @@ function getCommitSha() {
         }
     }
     if (github.context.eventName === 'repository_dispatch' || github.context.eventName === 'workflow_dispatch') {
-        return github.sha;
+        console.log(github);
+        return github.context.sha;
     }
 }
 // Returns parsed config from the root or default config if not found
