@@ -1,4 +1,7 @@
-require('./sourcemap-register.js');/******/ (() => { // webpackBootstrap
+require('./sourcemap-register.js');
+const core = require("@actions/core");
+const github = require("@actions/github");
+/******/ (() => { // webpackBootstrap
 /******/ 	var __webpack_modules__ = ({
 
 /***/ 87351:
@@ -76470,29 +76473,31 @@ async function parseEventData() {
         throw new Error('Invalid GitHub event data. Can not get owner or repository name from the event payload.');
     }
 
-    if (github.context.eventName === 'repository_dispatch') {
-        const branch =
-            github.context.payload.pull_request?.['head']?.['ref'] ||
-            github.context.ref.replace('refs/heads/', '');
-        console.log('branch:', branch)
-    } else {
-        const branch = 'master';
-    }
+    const branch = core.getInput('branch', { required: false }) || 'master';
+    console.log('branch:', branch);
 
-    const branch = 'master';
-    if (!branch) {
-        throw new Error('Invalid GitHub event data. Can not get branch from the event payload.');
-    }
     const defaultBranch = 'master';
     if (!defaultBranch) {
         throw new Error('Invalid GitHub event data. Can not get default branch from the event payload.');
     }
-    const commitSha = getCommitSha();
+    let commitSha = getCommitSha();
+    const githubToken = core.getInput('githubToken');
+    const octokit = github.getOctokit(githubToken);
+
+    if (github.context.eventName === 'repository_dispatch') {
+        const { data: branchData } = await octokit.rest.repos.getBranch({
+            namespace,
+            repository,
+            branch,
+        });
+
+        commitSha = branchData.commit.sha;
+        console.log('Commit sha from branch', commitSha);
+    }
+
     if (!commitSha) {
         throw new Error('Invalid GitHub event data. Can not get commit sha from the event payload.');
     }
-    const githubToken = core.getInput('githubToken');
-    const octokit = github.getOctokit(githubToken);
     const { data: commitData } = await octokit.rest.repos.getCommit({
         owner: namespace,
         repo: repository,
@@ -76530,7 +76535,7 @@ function getCommitSha() {
             return github.context.payload.after;
         }
     }
-    if (github.context.eventName === 'repository_dispatch' || github.context.eventName === 'workflow_dispatch') {
+    if (github.context.eventName === 'workflow_dispatch') {
         console.log(github);
         return github.context.sha;
     }

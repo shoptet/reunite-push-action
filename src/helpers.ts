@@ -49,20 +49,7 @@ export async function parseEventData(): Promise<ParsedEventData> {
       'Invalid GitHub event data. Can not get owner or repository name from the event payload.',
     );
   }
-  let branch = 'master';
-
-  // we force the branch to be master
-  if (github.context.eventName === 'repository_dispatch') {
-    branch =
-      github.context.payload.pull_request?.['head']?.['ref'] ||
-      github.context.ref.replace('refs/heads/', '');
-  }
-
-  if (!branch) {
-    throw new Error(
-      'Invalid GitHub event data. Can not get branch from the event payload.',
-    );
-  }
+  const branch = core.getInput('branch', { required: false }) || 'master';
 
   const defaultBranch: string | undefined = 'master';
 
@@ -72,16 +59,28 @@ export async function parseEventData(): Promise<ParsedEventData> {
     );
   }
 
-  const commitSha = getCommitSha();
+  const githubToken = core.getInput('githubToken');
+  const octokit = github.getOctokit(githubToken);
+  let commitSha = getCommitSha();
+
+  if (github.context.eventName === 'repository_dispatch') {
+    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+    // @ts-expect-error
+    const { data: branchData } = await octokit.rest.repos.getBranch({
+      namespace,
+      repository,
+      branch,
+    });
+
+    commitSha = branchData.commit.sha;
+    console.log('Commit sha from branch', commitSha);
+  }
 
   if (!commitSha) {
     throw new Error(
       'Invalid GitHub event data. Can not get commit sha from the event payload.',
     );
   }
-
-  const githubToken = core.getInput('githubToken');
-  const octokit = github.getOctokit(githubToken);
 
   const { data: commitData } = await octokit.rest.repos.getCommit({
     owner: namespace,
@@ -126,10 +125,7 @@ function getCommitSha(): string | undefined {
       return github.context.payload.after;
     }
   }
-  if (
-    github.context.eventName === 'repository_dispatch' ||
-    github.context.eventName === 'workflow_dispatch'
-  ) {
+  if (github.context.eventName === 'workflow_dispatch') {
     return github.context.sha;
   }
 }
