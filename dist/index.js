@@ -76505,7 +76505,7 @@ async function parseEventData() {
         commitSha,
         commitMessage: commitData.commit.message,
         commitUrl: commitData.html_url,
-        commitAuthor: `${commitData.commit.author?.name} <${commitData.commit.author?.email}>`,
+        commitAuthor: `Shoptet Api team <development_api_team@shoptet.cz>`,
         commitCreatedAt: commitData.commit.author?.date,
     };
     return {

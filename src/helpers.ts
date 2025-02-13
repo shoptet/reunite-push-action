@@ -64,9 +64,7 @@ export async function parseEventData(): Promise<ParsedEventData> {
     );
   }
 
-  const defaultBranch: string | undefined =
-    github.context.payload?.repository?.default_branch ||
-    github.context.payload?.repository?.master_branch;
+  const defaultBranch: string | undefined = 'master';
 
   if (!defaultBranch) {
     throw new Error(
@@ -101,7 +99,7 @@ export async function parseEventData(): Promise<ParsedEventData> {
     commitSha,
     commitMessage: commitData.commit.message,
     commitUrl: commitData.html_url,
-    commitAuthor: `${commitData.commit.author?.name} <${commitData.commit.author?.email}>`,
+    commitAuthor: `Shoptet Api team <development_api_team@shoptet.cz>`,
     commitCreatedAt: commitData.commit.author?.date,
   };
 
