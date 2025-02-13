@@ -76478,11 +76478,9 @@ async function parseEventData() {
     const githubToken = core.getInput('githubToken');
     const octokit = github.getOctokit(githubToken);
     let commitSha = getCommitSha();
-    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-    // @ts-expect-error
     const { data: branchData } = await octokit.rest.repos.getBranch({
-        namespace,
-        repository,
+        owner: namespace,
+        repo: repository,
         branch,
     });
     commitSha = branchData.commit.sha;
