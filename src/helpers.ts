@@ -63,14 +63,16 @@ export async function parseEventData(): Promise<ParsedEventData> {
   const octokit = github.getOctokit(githubToken);
   let commitSha = getCommitSha();
 
-  const { data: branchData } = await octokit.rest.repos.getBranch({
-    owner: namespace,
-    repo: repository,
-    branch,
-  });
+  if (github.context.eventName === 'repository_dispatch') {
+    const { data: branchData } = await octokit.rest.repos.getBranch({
+      owner: namespace,
+      repo: repository,
+      branch,
+    });
 
-  commitSha = branchData.commit.sha;
-  console.log('Commit sha from branch', commitSha);
+    commitSha = branchData.commit.sha;
+    console.log('Commit sha from branch', commitSha);
+  }
 
   if (!commitSha) {
     throw new Error(
