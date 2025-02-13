@@ -1,7 +1,4 @@
-require('./sourcemap-register.js');
-const core = require("@actions/core");
-const github = require("@actions/github");
-/******/ (() => { // webpackBootstrap
+require('./sourcemap-register.js');/******/ (() => { // webpackBootstrap
 /******/ 	var __webpack_modules__ = ({
 
 /***/ 87351:
@@ -76463,8 +76460,8 @@ exports.parseInputData = parseInputData;
 async function parseEventData() {
     if (!(github.context.eventName === 'push' ||
         github.context.eventName === 'pull_request' ||
-        github.context.eventName === 'workflow_dispatch' ||
-        github.context.eventName === 'repository_dispatch')) {
+        github.context.eventName === 'repository_dispatch' ||
+        github.context.eventName === 'workflow_dispatch')) {
         throw new Error('Unsupported GitHub event type. Only "push", "pull_request", "repository_dispatch" and "workflow_dispatch" events are supported.');
     }
     const namespace = github.context.payload?.repository?.owner?.login;
@@ -76472,29 +76469,25 @@ async function parseEventData() {
     if (!namespace || !repository) {
         throw new Error('Invalid GitHub event data. Can not get owner or repository name from the event payload.');
     }
-
     const branch = core.getInput('branch', { required: false }) || 'master';
-    console.log('branch:', branch);
-
     const defaultBranch = 'master';
     if (!defaultBranch) {
         throw new Error('Invalid GitHub event data. Can not get default branch from the event payload.');
     }
-    let commitSha = getCommitSha();
     const githubToken = core.getInput('githubToken');
     const octokit = github.getOctokit(githubToken);
-
+    let commitSha = getCommitSha();
     if (github.context.eventName === 'repository_dispatch') {
+        // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+        // @ts-expect-error
         const { data: branchData } = await octokit.rest.repos.getBranch({
             namespace,
             repository,
             branch,
         });
-
         commitSha = branchData.commit.sha;
         console.log('Commit sha from branch', commitSha);
     }
-
     if (!commitSha) {
         throw new Error('Invalid GitHub event data. Can not get commit sha from the event payload.');
     }
@@ -76536,7 +76529,6 @@ function getCommitSha() {
         }
     }
     if (github.context.eventName === 'workflow_dispatch') {
-        console.log(github);
         return github.context.sha;
     }
 }
