@@ -50,7 +50,7 @@ export async function parseEventData(): Promise<ParsedEventData> {
     );
   }
   const branch = core.getInput('branch', { required: false }) || 'master';
-
+  console.log('Branch', branch);
   const defaultBranch: string | undefined = 'master';
 
   if (!defaultBranch) {
@@ -63,18 +63,16 @@ export async function parseEventData(): Promise<ParsedEventData> {
   const octokit = github.getOctokit(githubToken);
   let commitSha = getCommitSha();
 
-  if (github.context.eventName === 'repository_dispatch') {
-    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-    // @ts-expect-error
-    const { data: branchData } = await octokit.rest.repos.getBranch({
-      namespace,
-      repository,
-      branch,
-    });
+  // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+  // @ts-expect-error
+  const { data: branchData } = await octokit.rest.repos.getBranch({
+    namespace,
+    repository,
+    branch,
+  });
 
-    commitSha = branchData.commit.sha;
-    console.log('Commit sha from branch', commitSha);
-  }
+  commitSha = branchData.commit.sha;
+  console.log('Commit sha from branch', commitSha);
 
   if (!commitSha) {
     throw new Error(
