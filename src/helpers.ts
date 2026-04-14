@@ -13,6 +13,7 @@ export function parseInputData(): ParsedInputData {
   const redoclyDomain =
     core.getInput('domain') || 'https://app.cloud.redocly.com';
   const maxExecutionTime = Number(core.getInput('maxExecutionTime')) || 1200;
+  const defaultBranch = core.getInput('defaultBranch') || undefined;
 
   const absoluteFilePaths = files.map(_path =>
     path.join(process.env.GITHUB_WORKSPACE || '', _path),
@@ -25,10 +26,13 @@ export function parseInputData(): ParsedInputData {
     files: absoluteFilePaths,
     redoclyDomain,
     maxExecutionTime,
+    defaultBranch,
   };
 }
 
-export async function parseEventData(): Promise<ParsedEventData> {
+export async function parseEventData(
+  defaultBranchOverride?: string,
+): Promise<ParsedEventData> {
   if (
     !(
       github.context.eventName === 'push' ||
@@ -41,6 +45,20 @@ export async function parseEventData(): Promise<ParsedEventData> {
       'Unsupported GitHub event type. Only "push", "pull_request", "repository_dispatch" and "workflow_dispatch" events are supported.',
     );
   }
+
+  if (github.context.eventName === 'pull_request') {
+    const allowedActions = ['opened', 'synchronize', 'reopened'];
+
+    if (
+      !github.context.payload.action ||
+      !allowedActions.includes(github.context.payload.action)
+    ) {
+      throw new Error(
+        'Unsupported GitHub event. Only "opened", "synchronize" and "reopened" actions are supported for pull requests.',
+      );
+    }
+  }
+
   const namespace = github.context.payload?.repository?.owner?.login;
   const repository = github.context.payload?.repository?.name;
 
@@ -55,7 +73,7 @@ export async function parseEventData(): Promise<ParsedEventData> {
 
   if (!defaultBranch) {
     throw new Error(
-      'Invalid GitHub event data. Can not get default branch from the event payload.',
+      'Invalid GitHub event data. Can not get default branch from the event payload. You can use the "defaultBranch" input to set it manually.',
     );
   }
 
@@ -110,18 +128,13 @@ export async function parseEventData(): Promise<ParsedEventData> {
   };
 }
 
-function getCommitSha(): string | undefined {
+export function getCommitSha(): string | undefined {
   if (github.context.eventName === 'push') {
     return github.context.payload.after;
   }
 
   if (github.context.eventName === 'pull_request') {
-    if (github.context.payload.action === 'opened') {
-      return github.context.payload.pull_request?.head?.sha;
-    }
-    if (github.context.payload.action === 'synchronize') {
-      return github.context.payload.after;
-    }
+    return github.context.payload.pull_request?.head?.sha;
   }
   if (github.context.eventName === 'workflow_dispatch') {
     return github.context.sha;
