@@ -84932,8 +84932,10 @@ function parseInputData() {
 exports.parseInputData = parseInputData;
 async function parseEventData(defaultBranchOverride) {
     if (!(github.context.eventName === 'push' ||
-        github.context.eventName === 'pull_request')) {
-        throw new Error('Unsupported GitHub event type. Only "push" and "pull_request" events are supported.');
+        github.context.eventName === 'pull_request' ||
+        github.context.eventName === 'repository_dispatch' ||
+        github.context.eventName === 'workflow_dispatch')) {
+        throw new Error('Unsupported GitHub event type. Only "push", "pull_request", "repository_dispatch" and "workflow_dispatch" events are supported.');
     }
     if (github.context.eventName === 'pull_request') {
         const allowedActions = ['opened', 'synchronize', 'reopened'];
@@ -84947,23 +84949,27 @@ async function parseEventData(defaultBranchOverride) {
     if (!namespace || !repository) {
         throw new Error('Invalid GitHub event data. Can not get owner or repository name from the event payload.');
     }
-    const branch = github.context.payload.pull_request?.['head']?.['ref'] ||
-        github.context.ref.replace('refs/heads/', '');
-    if (!branch) {
-        throw new Error('Invalid GitHub event data. Can not get branch from the event payload.');
-    }
-    const defaultBranch = defaultBranchOverride ||
-        github.context.payload?.repository?.default_branch ||
-        github.context.payload?.repository?.master_branch;
+    const branch = core.getInput('branch', { required: false }) || 'master';
+    console.log('Branch', branch);
+    const defaultBranch = 'master';
     if (!defaultBranch) {
         throw new Error('Invalid GitHub event data. Can not get default branch from the event payload. You can use the "defaultBranch" input to set it manually.');
     }
-    const commitSha = getCommitSha();
+    const githubToken = core.getInput('githubToken');
+    const octokit = github.getOctokit(githubToken);
+    let commitSha = getCommitSha();
+    if (github.context.eventName === 'repository_dispatch') {
+        const { data: branchData } = await octokit.rest.repos.getBranch({
+            owner: namespace,
+            repo: repository,
+            branch,
+        });
+        commitSha = branchData.commit.sha;
+        console.log('Commit sha from branch', commitSha);
+    }
     if (!commitSha) {
         throw new Error('Invalid GitHub event data. Can not get commit sha from the event payload.');
     }
-    const githubToken = core.getInput('githubToken');
-    const octokit = github.getOctokit(githubToken);
     const { data: commitData } = await octokit.rest.repos.getCommit({
         owner: namespace,
         repo: repository,
@@ -84976,7 +84982,7 @@ async function parseEventData(defaultBranchOverride) {
         commitSha,
         commitMessage: commitData.commit.message,
         commitUrl: commitData.html_url,
-        commitAuthor: `${commitData.commit.author?.name} <${commitData.commit.author?.email}>`,
+        commitAuthor: `Shoptet Api team <development_api_team@shoptet.cz>`,
         commitCreatedAt: commitData.commit.author?.date,
     };
     return {
@@ -84995,6 +85001,9 @@ function getCommitSha() {
     }
     if (github.context.eventName === 'pull_request') {
         return github.context.payload.pull_request?.head?.sha;
+    }
+    if (github.context.eventName === 'workflow_dispatch') {
+        return github.context.sha;
     }
 }
 exports.getCommitSha = getCommitSha;
