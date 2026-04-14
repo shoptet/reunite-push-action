@@ -1,30 +1,24 @@
 import * as core from '@actions/core';
+import * as github from '@actions/github';
 import { parseInputData, parseEventData, getRedoclyConfig } from '../helpers';
 import { loadConfig } from '@redocly/openapi-core';
-import { Context } from '@actions/github/lib/context';
+import { WebhookPayload } from '@actions/github/lib/interfaces';
 
 let getInputMock: jest.SpiedFunction<typeof core.getInput>;
 
-function getPushEventContext(): Partial<Context> {
-  return {
-    eventName: 'push',
-    payload: {
-      repository: {
-        owner: {
-          login: 'test-namespace',
-        },
-        name: 'test-repo',
-        default_branch: 'test-default-branch',
-      },
-      after: 'test-commit-sha',
-    },
-    ref: 'refs/heads/test-branch',
-  };
-}
-
 jest.mock('@actions/github', () => ({
   ...jest.requireActual('@actions/github'),
-  context: getPushEventContext(),
+  context: {
+    repo: {
+      owner: '',
+      repo: 'test-repo',
+    },
+    issue: {
+      owner: 'test-namespace',
+      repo: 'test-repo-name',
+      number: 1,
+    },
+  },
   getOctokit: jest.fn().mockImplementation(() => ({
     rest: {
       repos: {
@@ -46,12 +40,29 @@ jest.mock('@actions/github', () => ({
   })),
 }));
 
-describe('helpers', () => {
-  const OLD_ENV = process.env;
+const OLD_ENV = process.env;
 
+describe('helpers', () => {
   beforeEach(() => {
     jest.resetModules();
     jest.clearAllMocks();
+
+    // NOTE: The 'context' object cannot be mocked using jest.spyOn because it is not declared as configurable.
+    // As a result, we manually set its properties in the test setup.
+    github.context.eventName = 'push';
+    github.context.action = '';
+    github.context.payload = createPayloadMock({});
+    github.context.ref = 'refs/heads/test-branch';
+    github.context.sha = '';
+    github.context.actor = '';
+    github.context.job = '';
+    github.context.runNumber = 1;
+    github.context.runId = 1;
+    github.context.apiUrl = '';
+    github.context.serverUrl = '';
+    github.context.graphqlUrl = '';
+    github.context.workflow = '';
+
     process.env = {
       ...OLD_ENV,
       GITHUB_WORKSPACE: '/home/runner/work/reunite-push-action/',
@@ -77,7 +88,7 @@ describe('helpers', () => {
       );
       const parsedInputData = parseInputData();
 
-      expect(getInputMock).toHaveBeenCalledTimes(6);
+      expect(getInputMock).toHaveBeenCalledTimes(7);
       expect(parsedInputData).toEqual({
         redoclyOrgSlug: 'test-org-slug',
         redoclyProjectSlug: 'test-project-slug',
@@ -88,12 +99,48 @@ describe('helpers', () => {
         ],
         mountPath: 'test/mount/path',
         maxExecutionTime: 100,
+        defaultBranch: undefined,
+      });
+    });
+
+    it('should return parsed input data with custom default branch', () => {
+      getInputMock.mockImplementation(
+        getGetInputMock({
+          organization: 'test-org-slug',
+          project: 'test-project-slug',
+          domain: 'redocly-domain.com',
+          files: 'testFolder testOpenApiFile.yaml',
+          mountPath: 'test/mount/path',
+          maxExecutionTime: '100',
+          defaultBranch: 'custom-main',
+        }),
+      );
+      const parsedInputData = parseInputData();
+
+      expect(getInputMock).toHaveBeenCalledTimes(7);
+      expect(parsedInputData).toEqual({
+        redoclyOrgSlug: 'test-org-slug',
+        redoclyProjectSlug: 'test-project-slug',
+        redoclyDomain: 'redocly-domain.com',
+        files: [
+          '/home/runner/work/reunite-push-action/testFolder',
+          '/home/runner/work/reunite-push-action/testOpenApiFile.yaml',
+        ],
+        mountPath: 'test/mount/path',
+        maxExecutionTime: 100,
+        defaultBranch: 'custom-main',
       });
     });
   });
 
   describe('parseEventData', () => {
-    it('should return parsed GitHub event data', async () => {
+    it('should return parsed GitHub push event data', async () => {
+      github.context.eventName = 'push';
+      github.context.payload = createPayloadMock({
+        after: 'test-commit-sha',
+      });
+      github.context.ref = 'refs/heads/test-branch';
+
       const parsedEventData = await parseEventData();
 
       expect(parsedEventData).toEqual({
@@ -111,6 +158,151 @@ describe('helpers', () => {
         },
       });
     });
+
+    it.each(['opened', 'reopened', 'synchronize'])(
+      `should return parsed GitHub PR event data for "%s" action`,
+      async action => {
+        github.context.eventName = 'pull_request';
+        github.context.payload = createPayloadMock({
+          action,
+          pull_request: {
+            number: 1,
+            head: {
+              sha: 'test-pr-head-sha',
+              ref: 'test-pr-branch',
+            },
+          },
+        });
+        github.context.ref = 'refs/pull/1/merge';
+
+        const parsedEventData = await parseEventData();
+
+        expect(parsedEventData).toEqual({
+          eventName: 'pull_request',
+          namespace: 'test-namespace',
+          repository: 'test-repo',
+          branch: 'test-pr-branch',
+          defaultBranch: 'test-default-branch',
+          commit: {
+            commitSha: 'test-pr-head-sha',
+            commitMessage: 'test-commit-message',
+            commitUrl: 'test-commit-html-url',
+            commitAuthor: 'test-commit-author-name <test-commit-author-email>',
+            commitCreatedAt: 'test-commit-created-at',
+          },
+        });
+      },
+    );
+
+    it('should throw error for unsupported event types', async () => {
+      github.context.eventName = 'issues';
+      github.context.ref = 'refs/pull/1/merge';
+
+      await expect(parseEventData()).rejects.toThrow(
+        'Unsupported GitHub event type. Only "push" and "pull_request" events are supported.',
+      );
+    });
+
+    it('should throw error for unsupported PR action', async () => {
+      github.context.eventName = 'pull_request';
+      github.context.payload = createPayloadMock({
+        action: 'closed',
+      });
+
+      await expect(parseEventData()).rejects.toThrow(
+        'Unsupported GitHub event. Only "opened", "synchronize" and "reopened" actions are supported for pull requests.',
+      );
+    });
+
+    it('should throw error when repository info is missing', async () => {
+      github.context.eventName = 'push';
+      github.context.payload = createPayloadMock({
+        repository: undefined,
+      });
+
+      await expect(parseEventData()).rejects.toThrow(
+        'Invalid GitHub event data. Can not get owner or repository name from the event payload.',
+      );
+    });
+
+    it('should throw error when branch info is missing', async () => {
+      github.context.eventName = 'push';
+      github.context.payload = createPayloadMock({});
+      github.context.ref = '';
+
+      await expect(parseEventData()).rejects.toThrow(
+        'Invalid GitHub event data. Can not get branch from the event payload.',
+      );
+    });
+
+    it('should throw error when default branch is missing', async () => {
+      github.context.eventName = 'push';
+      github.context.payload = createPayloadMock({
+        repository: {
+          owner: {
+            login: 'test-namespace',
+          },
+          name: 'test-repo',
+          default_branch: undefined,
+          master_branch: undefined,
+        },
+      });
+
+      await expect(parseEventData()).rejects.toThrow(
+        'Invalid GitHub event data. Can not get default branch from the event payload. You can use the "defaultBranch" input to set it manually.',
+      );
+    });
+
+    it('should use default branch override when provided', async () => {
+      github.context.eventName = 'push';
+      github.context.payload = createPayloadMock({
+        after: 'test-commit-sha',
+      });
+      github.context.ref = 'refs/heads/test-branch';
+
+      const parsedEventData = await parseEventData('custom-main-branch');
+
+      expect(parsedEventData.defaultBranch).toBe('custom-main-branch');
+    });
+
+    it('should use default branch override even when GitHub payload has default branch', async () => {
+      github.context.eventName = 'push';
+      github.context.payload = createPayloadMock({
+        after: 'test-commit-sha',
+        repository: {
+          owner: {
+            login: 'test-namespace',
+          },
+          name: 'test-repo',
+          default_branch: 'github-default-branch',
+        },
+      });
+      github.context.ref = 'refs/heads/test-branch';
+
+      const parsedEventData = await parseEventData('override-branch');
+
+      expect(parsedEventData.defaultBranch).toBe('override-branch');
+    });
+
+    it('should not throw when default branch override is provided and GitHub payload is missing default branch', async () => {
+      github.context.eventName = 'push';
+      github.context.payload = createPayloadMock({
+        after: 'test-commit-sha',
+        repository: {
+          owner: {
+            login: 'test-namespace',
+          },
+          name: 'test-repo',
+          default_branch: undefined,
+          master_branch: undefined,
+        },
+      });
+      github.context.ref = 'refs/heads/test-branch';
+
+      const parsedEventData = await parseEventData('fallback-branch');
+
+      expect(parsedEventData.defaultBranch).toBe('fallback-branch');
+    });
   });
 
   describe('getRedoclyConfig', () => {
@@ -126,3 +318,18 @@ function getGetInputMock(mockInput: { [key: string]: string }) {
     return mockInput[name] || '';
   };
 }
+
+const createPayloadMock = (
+  payload: Partial<WebhookPayload>,
+): WebhookPayload => {
+  return {
+    repository: {
+      owner: {
+        login: 'test-namespace',
+      },
+      name: 'test-repo',
+      default_branch: 'test-default-branch',
+    },
+    ...payload,
+  };
+};
