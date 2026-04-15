@@ -84949,9 +84949,8 @@ async function parseEventData(defaultBranchOverride) {
     if (!namespace || !repository) {
         throw new Error('Invalid GitHub event data. Can not get owner or repository name from the event payload.');
     }
-    const branch = core.getInput('branch', { required: false }) || 'master';
-    console.log('Branch', branch);
-    const defaultBranch = 'master';
+    const branch = core.getInput('branch', { required: false }) || 'main';
+    const defaultBranch = 'main';
     if (!defaultBranch) {
         throw new Error('Invalid GitHub event data. Can not get default branch from the event payload. You can use the "defaultBranch" input to set it manually.');
     }

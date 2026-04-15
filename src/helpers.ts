@@ -67,9 +67,8 @@ export async function parseEventData(
       'Invalid GitHub event data. Can not get owner or repository name from the event payload.',
     );
   }
-  const branch = core.getInput('branch', { required: false }) || 'master';
-  console.log('Branch', branch);
-  const defaultBranch: string | undefined = 'master';
+  const branch = core.getInput('branch', { required: false }) || 'main';
+  const defaultBranch: string | undefined = 'main';
 
   if (!defaultBranch) {
     throw new Error(
